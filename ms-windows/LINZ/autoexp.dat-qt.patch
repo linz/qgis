@@ -1,0 +1,407 @@
+--- autoexp.dat.org	Thu Feb 07 14:27:58 2008
++++ autoexp.dat	Fri May 21 12:56:01 2010
+@@ -144,6 +144,26 @@
+ std::less<*>=lessthan
+ std::greater<*>=greaterthan
+ 
++QObject =classname=<staticMetaObject.d.stringdata,s> superclassname=<staticMetaObject.d.superdata->d.stringdata,s>
++QList<*>=size=<d->end,i>
++QLinkedList<*>=size=<d->end,i>
++QString=<d->data,su> size=<d->size,u>
++QByteArray=<d->data,s> size=<d->size,u>
++QUrl =<d->encodedOriginal.d->data,s>
++QUrlInfo =<d->name.d->data,su>
++QPoint =x=<xp> y=<yp>
++QPointF =x=<xp> y=<yp>
++QRect =x1=<x1> y1=<y1> x2=<x2> y2=<y2>
++QRectF =x=<xp> y=<yp> w=<w> h=<h>
++QSize =width=<wd> height=<ht>
++QSizeF =width=<wd> height=<ht>
++QMap<*> =size=<d->size>
++QVector<*> =size=<d->size>
++QHash<*> =size=<d->size>
++QVarLengthArray<*> =size=<s> data=<ptr>
++QFont =family=<d->request.family.d->data,su> size=<d->request.pointSize, f>
++QDomNode =name=<impl->name.d->data,su> value=<impl->value.d->data,su>
++
+ [Visualizer]
+ ; This section contains visualizers for STL and ATL containers
+ ; DO NOT MODIFY
+@@ -3002,6 +3022,377 @@
+ ; This section lets you define your own errors for the HRESULT display.
+ ; You need to list the error code in unsigned decimal, followed by the message.
+ ; Changes will take effect the next time you redisplay the variable.
++
++;------------------------------------------------------------------------------
++
++QChar{
++	preview(
++		(wchar_t)$e.ucs
++	)
++}
++
++;------------------------------------------------------------------------------
++; QList, QQueue
++;------------------------------------------------------------------------------
++; It seems the debugger has trouble evaluating QTypeInfo<$T1> when T1 is a pointer type.
++; Fortunately, we can catch this problem in the except clause of a switch. 
++; Writing a generic QList visualizer is hard because QList<T> stores either a array of T,
++; or an array of pointers to T, depending on what QTypeInfo has to say about type T.
++; So we try to use QTypeInfo just like Qt would to choose between the two storage layouts.
++; However, it seems the debugger can only evaluate QTypeInfo<$T1> if there is an explicit
++; specialization of QTypeInfo for T1. The "catch-all" templates QTypeInfo<T> and
++; QTypeInfo<T*> are not seen by the debugger.
++; Fortunately, if there is an expression which we are unsure the debugger can handle, we
++; can put it in the body of a dummy switch with an except-clause. If the expression indeed
++; fails to evaluate, the except-clause is used instead. This hack is used twice : first to
++; check whether QTypeInfo<$T1> evaluates, and if it doesn't, a second time to determine
++; whether $T1 is a pointer type
++QList<*>|QQueue<*>{
++    preview
++    (
++            #(
++                "[", $e.d->end - $e.d->begin, "](",
++    		#array(
++				expr:	#switch ( 0 ) #case 0 (
++							#if (((QTypeInfo<$T1>*)0)->isLarge || ((QTypeInfo<$T1>*)0)->isStatic) (
++								; QList stores an array of pointers to $T1
++								*($T1*)(($c.d->array + $c.d->begin)[$i])
++							) #else (
++								; QList stores an array of $T1
++								*($T1*)&(($c.d->array + $c.d->begin)[$i])
++							)
++						)
++    					#except (
++							#switch ( 0 ) #case 0 (
++								; let's pretend $T1 is a pointer type, and QList stores an array of $T1
++								*($T1)(($c.d->array + $c.d->begin)[$i])
++							)
++							#except (
++								; $T1 is not a pointer type, so QList stores an array of pointers to $T1
++								*($T1*)(($c.d->array + $c.d->begin)[$i])
++							)
++    					),
++				size:	#if ($c.d->end-$c.d->begin <= 10) ( $c.d->end-$c.d->begin ) #else ( 10 ),
++    		),
++			#if ($c.d->end-$c.d->begin > 10) ( ", ...)" ) #else ( ")" )
++        )
++    )
++
++    children
++    (
++        #array (
++			expr:	#switch ( 0 ) #case 0 (
++						#if (((QTypeInfo<$T1>*)0)->isLarge || ((QTypeInfo<$T1>*)0)->isStatic) (
++							; QList stores an array of pointers to $T1
++							*($T1*)(($c.d->array + $c.d->begin)[$i])
++						) #else (
++							; QList stores an array of $T1
++							*($T1*)&(($c.d->array + $c.d->begin)[$i])
++						)
++					)
++					#except (
++						#switch ( 0 ) #case 0 (
++							; let's pretend $T1 is a pointer type, and QList stores an array of $T1
++							*($T1)(($c.d->array + $c.d->begin)[$i])
++						)
++						#except (
++							; $T1 is not a pointer type, so QList stores an array of pointers to $T1
++							*($T1*)(($c.d->array + $c.d->begin)[$i])
++						)
++					),
++            size: $c.d->end - $c.d->begin
++        )
++    )
++}
++
++
++;------------------------------------------------------------------------------
++; QMap::Node
++;------------------------------------------------------------------------------
++QMapNode<*,*>{
++    preview
++    (
++        #(
++            "(", $e.key,"; ", $e.value, ")"
++        )
++    )
++
++    children
++    (
++        #(
++            key: $c.key,
++            value: $c.value
++        )
++    )
++}
++
++;------------------------------------------------------------------------------
++; QMap
++;------------------------------------------------------------------------------
++QMap<*>{
++    preview
++    (
++        #(
++            "[", $e.d->size, "](",
++	        #tree
++	        (
++	            head: $e.d->forward[0],
++	            skip: $e.d,
++	            size : #if ($e.d->size < 10) ($e.d->size) #else (10),
++	            left : backward,
++	            right : forward
++	        ) : ( (QMapNode<$T1>*)((char*)&$e - (sizeof(*(QMapPayloadNode<$T1>*)0) - sizeof(QMapData::Node*))) )
++	        ,
++	        #if ($e.d->size > 10) ( ", ..." ),
++	        ")"
++	    )
++    )
++
++    children
++    (
++        #tree
++        (
++            head: $c.d->forward[0],
++            skip: $c.d,
++            size : $c.d->size,
++            left : backward,
++            right : forward
++        ) : ( (QMapNode<$T1>*)((char*)&$e - (sizeof(*(QMapPayloadNode<$T1>*)0) - sizeof(QMapData::Node*))) )
++    )
++}
++
++;------------------------------------------------------------------------------
++; QMap::iterator
++;------------------------------------------------------------------------------
++QMap<*>::iterator|QMap<*>::const_iterator{
++    preview
++    (
++        #(
++            (QMapNode<$T1>*)((char*)$e.i - (sizeof(*(QMapPayloadNode<$T1>*)0) - sizeof(QMapData::Node*)))
++        )
++    )
++
++    children
++    (
++        #(
++            ptr: (QMapNode<$T1>*)((char*)$e.i - (sizeof(*(QMapPayloadNode<$T1>*)0) - sizeof(QMapData::Node*)))
++        )
++    )
++}
++
++;------------------------------------------------------------------------------
++; Trolltech Qt 4.x visualizers ---------------------------------------[ end ]--
++;QT_DEBUG_END
++
++;------------------------------------------------------------------------------
++
++QHashNode<*,QHashDummyValue>{
++	preview(
++		#( $e.key )
++	)
++	children(
++		#(
++			key:	$e.key,
++			hash:	$e.h
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++QHashNode<*,*>{
++	preview(
++		#(
++			"(", $e.key, #if (1) (" : "), $e.value, ")"
++		)
++	)
++	children(
++		#(
++			key: $e.key,
++			value: $e.value,
++			hash: $e.h
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; This visualizer gives a very nice-looking result (a single list of key/value pairs, similar to QMap).
++; Unfortunately, it's also quite slow, and can freeze the debugger for a while when displaying a huge QHash.
++QHash<*,*>|QMultiHash<*,*>{
++	preview(
++		#(
++			"size=", $e.d->size, ", buckets=", $e.d->numBuckets
++		)
++	)
++	children(
++		#(
++			#array(
++				expr: (QHashNode<$T1,$T2>*)$c.d->buckets[$i],
++				size: $c.d->numBuckets
++			) : #list(
++            	head: $e,
++            	next: next
++            ) : #switch ($e.next != 0) ; filter out the last node of the bucket (always empty)
++            	#case 1 ( $e )
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++QSet<*>{
++	preview(
++		#(
++			"size=", $e.q_hash.d->size, ", buckets=", $e.q_hash.d->numBuckets
++		)
++	)
++	children(
++		#(
++			#array(
++				expr: (QHashNode<$T1,QHashDummyValue>*)$c.q_hash.d->buckets[$i],
++				size: $c.q_hash.d->numBuckets
++			) : #list(
++            	head: $e,
++            	next: next
++            ) : #switch ($e.next != 0) ; filter out the last node of the bucket (always empty)
++            	#case 1 ( $e )
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++QFile{
++	preview(
++		#(
++			$e.d_ptr
++		)
++	)
++	children(
++		#(
++			private: $e.d_ptr
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; The debugger has trouble accessing the QDirPrivate member, so we have to cheat.
++; The class looks like this :
++;     class QDirPrivate {
++;         QDir* q_ptr;
++;     #ifdef QT3_SUPPORT
++;         QChar filterSepChar;
++;         bool matchAllDirs;
++;     #endif
++;         Data* data;
++;         class Data {
++;             QAtomic ref;
++;             QString path;
++;         };
++;     };
++; This visualizer assumes the following :
++;     Qt built with QT3_SUPPORT
++;     offsetof(QDirPrivate, data) == 8
++;     offsetof(QDirPrivate::Data, path) == 4
++QDir{
++	preview(
++		#(
++			*(QString*)((*(char**)(((char*)$e.d_ptr) + 8)) + 4)
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; Converting from julian day to day/month/year usually involves several intermediate variables.
++; Unfortunately, in a vizualizer we can't use any, so we must do it in a single (scarry) expression.
++; Not elegant, but works pretty well !
++QDate{
++	preview(
++		#if ($e.jd == 0) (
++			#( "Null Date" )
++		)
++		#else (
++			#(
++				(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)-(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)/365+1)*3/4)*365)-(((((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)-(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)/365+1)*3/4)*365)*5+308)/153-2)+4)*153/5+122)+1,
++				"/",
++				(((((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)-(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)/365+1)*3/4)*365)*5+308)/153-2)+2)%12+1,
++				"/",
++				(($e.jd+32044)/146097)*400+(((($e.jd+32044)%146097)/36524+1)*3/4)*100+(((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)/1461)*4+(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)/365+1)*3/4)-4800+(((((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)-(((((($e.jd+32044)%146097)-(((($e.jd+32044)%146097)/36524+1)*3/4)*36524)%1461)/365+1)*3/4)*365)*5+308)/153-2)+2)/12
++			)
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; #if (1) (":") is a hack needed because the debugger has trouble displaying colons.
++QTime{
++	preview(
++		#if ($e.mds < 0) (
++			#( "Null Time" )
++		)
++		#else (
++			#(
++				#if ($e.mds / 3600000 < 10)      ("0"), $e.mds / 3600000,
++				#if (1) (":"),
++				#if (($e.mds / 60000) % 60 < 10) ("0"), ($e.mds / 60000) % 60,
++				#if (1) (":"),
++				#if (($e.mds / 1000) % 60 < 10)  ("0"), [($e.mds % 60000) / 1000.0,g]
++			)
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; The debugger has trouble accessing QDateTimePrivate, so we have to cheat.
++; The class looks like this (Qt 4.5) :
++;     class QDateTimePrivate {
++;         QAtomicInt ref;
++;         QDate date;
++;         QTime time;
++;         ...
++;     };
++; This visualizer assumes the class members are tighly packed.
++QDateTime{
++	preview(
++		#(
++			*(QDate*)(((char*)$e.d) + sizeof(QAtomicInt)),
++			" ",
++			*(QTime*)(((char*)$e.d) + sizeof(QAtomicInt) + sizeof(QDate))
++		)
++	)
++}
++
++;------------------------------------------------------------------------------
++
++; NB : "$e.d.data.i" doesn't seem to work, so we have to use hacks such as "*(int*)&$e.d.data"
++QVariant{
++	preview(
++		#switch ($e.d.type)
++			#case 0  ( #( "Invalid" ) )
++			#case 1  ( #( *(bool*)&$e.d.data ) )
++			#case 2  ( #( *(int*)&$e.d.data ) )
++			#case 3  ( #( *(unsigned*)&$e.d.data,"U" ) )
++			#case 4  ( #( *(qlonglong*)&$e.d.data,"L" ) )
++			#case 5  ( #( *(qulonglong*)&$e.d.data,"UL" ) )
++			#case 6  ( #( [*(double*)&$e.d.data,g] ) )
++			#case 7  ( #( *(QChar*)&$e.d.data ) )
++			#case 8  ( #( *(QMap<QString,QVariant>*)&$e.d.data ) )
++			#case 9  ( #( *(QList<QVariant>*)&$e.d.data ) )
++			#case 10 ( #( [((QString*)&$e.d.data)->d->data,su] ) )
++			#case 11 ( #( *(QStringList*)&$e.d.data ) )
++			#case 12 ( #( *(QByteArray*)&$e.d.data ) )
++			#case 14 ( #( *(QDate*)&$e.d.data ) )
++			#case 15 ( #( *(QTime*)&$e.d.data ) )
++			#case 16 ( #( *(QDateTime*)&$e.d.data) )
++			#case 28 ( #( *(QHash<QString,QVariant>*)&$e.d.data ) )
++			#default ( #( "(QVariant : Type ", $e.d.type, ")" ) )
++	)
++}
+ 
+ [hresult]
+ ;1234=my custom error code

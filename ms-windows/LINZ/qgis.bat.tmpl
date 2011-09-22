@@ -1,0 +1,11 @@
+@echo off
+
+SET OSGEO4W_ROOT=@osgeo4w@
+SET QGIS_PLUGINPATH=\\\\ad\dfs\sites\lh\group\LOL_Operations\Spatial Parcel Improvement Project\software\QGISPlugins
+call "%OSGEO4W_ROOT%"\bin\o4w_env.bat
+@echo off
+path %PATH%;%GISBASE%\bin
+if "%HOME%"=="" (
+    SET HOME=%USERPROFILE%
+)
+start "Quantum GIS LINZ" /B "%OSGEO4W_ROOT%"\apps\@package@\bin\qgis.exe %*

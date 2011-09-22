@@ -1,0 +1,129 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\Quantum GIS Project]
+@="Quantum GIS Project"
+
+[HKEY_CLASSES_ROOT\Quantum GIS Project\DefaultIcon]
+@="@osgeo4w@\\apps\\@package@\\icons\\qgis.ico"
+
+[HKEY_CLASSES_ROOT\Quantum GIS Project\Shell]
+
+[HKEY_CLASSES_ROOT\Quantum GIS Project\Shell\open]
+@=""
+
+[HKEY_CLASSES_ROOT\Quantum GIS Project\Shell\open\command]
+@="\"@osgeo4w@\\bin\\@package@.bat\" \"%1\""
+
+[HKEY_CLASSES_ROOT\.qgs]
+@="Quantum GIS Project"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Map]
+"identifyRadius"="0.5"
+"updateThreshold"=dword:000003e8
+"identifyMode"=dword:00000000
+"identifyAutoFeatureForm"="false"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Plugins]
+"coordinatecaptureplugin"="true"
+"copyrightlabelplugin"="false"
+"delimitedtextplugin"="true"
+"diagramoverlay"="true"
+"dxf2shpconverterplugin"="true"
+"georefplugin"="true"
+"gpsimporterplugin"="true"
+"interpolationplugin"="false"
+"northarrowplugin"="false"
+"ogrconverterplugin"="true"
+"quickprintplugin"="true"
+"spitplugin"="false"
+"wfsplugin"="true"
+"gridmakerplugin"="true"
+"rasterterrainplugin"="true"
+"labelingplugin"="true"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Plugins\ParcelBlock]
+"ParcelLayer"="parcel"
+"ParcelBlockLayer"="spi_parcel_block"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Plugins\SurveyImage]
+"Database"="prdgeo01 (SPI)"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\PostgreSQL]
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\PostgreSQL\connections]
+"selected"="prdgeo01 (SPI)"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\PostgreSQL\connections\prdgeo01 (SPI)]
+"host"="prdgeo01"
+"database"="spi_db"
+"port"="5432"
+"username"=""
+"password"=""
+"publicOnly"="false"
+"geometryColumnsOnly"="false"
+"sslmode"=dword:00000001
+"saveUsername"="false"
+"savePassword"="false"
+"estimatedMetadata"="true"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\PostgreSQL\connections\devgeo01]
+"host"="devgeo01"
+"database"="ngo_db"
+"port"="5432"
+"username"=""
+"password"=""
+"publicOnly"="false"
+"geometryColumnsOnly"="false"
+"sslmode"=dword:00000001
+"saveUsername"="false"
+"savePassword"="false"
+"estimatedMetadata"="true"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Projections]
+"defaultBehaviour"="useGlobal"
+"defaultProjectionString"="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\PythonPlugins]
+"plugin_installer"="true"
+"fTools"="true"
+"VectorFieldRenderer"="true"
+"SurveyImage"="true"
+"LandXml"="true"
+"LinzPlugins"="true"
+"ParcelBlock"="true"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis]
+"new_layers_visible"="true"
+"enable_anti_aliasing"="true"
+"use_qimage_to_render"="true"
+"capitaliseLayerName"="false"
+"askToSaveProjectChanges"="true"
+"warnOldProjectVersion"="true"
+"enable_render_caching"="false"
+"use_symbology_ng"="true"
+"WMSSearchUrl"="http://geopole.org/wms/search?search=%1&type=rss"
+"addNewLayersToCurrentGroup"="false"
+"defaultSelectionMethod"="Contains"
+"maxFeatAttrTableWarning"=dword:00002710
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\connections-wms]
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\connections-wms\Customer Services Geoserver]
+"url"="http://devgeo01.tstad.linz.govt.nz:8080/geoserver/wms?SERVICE=WMS"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\WMS]
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\WMS\Customer Services Geoserver]
+"username"=""
+"password"=""
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\measure]
+"ellipsoid"="GRS80"
+"displayunits"="meters"
+"angleunits"="degrees"
+
+[HKEY_CURRENT_USER\Software\QuantumGIS\QGIS\Qgis\plugin-repos\Customer Services Repository]
+"url"="http://inlinz2/CustomerServices/QgisPluginRepository/plugins.xml"
+"enabled"="true"
+"valid"="true"
+
