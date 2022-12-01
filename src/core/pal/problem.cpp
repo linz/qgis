@@ -100,6 +100,14 @@ void Problem::reduce()
   int lpid;
 
   printf("+++Problem::reduce\n");
+
+  std::vector<int> allIds;
+  PalRtree<LabelPosition>::Iterator iter;
+  for(mAllCandidatesIndex.GetFirst(iter); !mAllCandidatesIndex.IsNull(iter); mAllCandidatesIndex.GetNext(iter)) {
+    LabelPosition *v = mAllCandidatesIndex.GetAt(iter);
+    allIds.push_back(v->getId());
+  }
+
   std::vector<int> featureIds;
   std::vector<int> labelPositionIds;
   transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(featureIds), toFeatureId);
@@ -115,19 +123,23 @@ void Problem::reduce()
 
     lp->getBoundingBox( amin, amax );
 
+    long fromId = lp->getId();
+
     printf("Check bbox for %ld: id=%d, %lf,%lf,%lf,%lf\n", i, lp->getId(), amin[0], amin[1], amax[0], amax[1]);
-    mAllCandidatesIndex.intersects( QgsRectangle( amin[0], amin[1], amax[0], amax[1] ), [&conflictMatrix, i, lp, this]( const LabelPosition * lp2 ) -> bool {
+    mAllCandidatesIndex.intersects( QgsRectangle( amin[0], amin[1], amax[0], amax[1] ), [&conflictMatrix, i, lp, fromId, this]( const LabelPosition * lp2 ) -> bool {
       auto sameLabel = [lp2](const std::unique_ptr< LabelPosition > &lp1) { return lp1.get()->getId() == lp2->getId(); };
       size_t lp2index = std::find_if(mLabelPositions.begin(), mLabelPositions.end(), sameLabel) - mLabelPositions.begin();
-      printf("debug: intersect at %ld,%ld\n", i, lp2index);
+      long toId = lp2->getId();
+
+      printf("intersect at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
       if (candidatesAreConflicting(lp2, lp)) {
-        printf("conflict at %ld,%ld\n", i, lp2index);
-        conflictMatrix[i][lp2index] = 1;
-        conflictMatrix[lp2index][i] = 1; // Why?
-        return true;
+        printf("conflict at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
+        conflictMatrix[fromId][toId] = 1;
+        conflictMatrix[toId][fromId] = 1; // QGIS only shows conflicts in one direction I think
       }
 
-        return false;
+      // We want all intersects
+      return true;
     });
   }
 
@@ -137,7 +149,8 @@ void Problem::reduce()
           { "mFeatStartId", mFeatStartId},
           { "mLabelPositions->featureId", featureIds},
           { "mLabelPositions->id", labelPositionIds},
-          { "conflictMatrix", conflictMatrix }
+          { "conflictMatrix", conflictMatrix },
+          { "mAllCandidatesIndex->ids", allIds }
   };
   std::cout << debugBefore << std::endl;
 
