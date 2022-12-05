@@ -64,6 +64,10 @@ static int toLabelPositionId(const std::unique_ptr<LabelPosition> &lp) {
   return lp->getId();
 }
 
+static int toLabelNumOverlaps(const std::unique_ptr<LabelPosition> &lp) {
+  return lp->getNumOverlaps();
+}
+
 static double toLabelCost(const std::unique_ptr<LabelPosition> &lp) {
   return lp->cost();
 }
@@ -238,8 +242,10 @@ void Problem::reduce()
 
 void Problem::ignoreLabel( const LabelPosition *lp, PriorityQueue &list, PalRtree< LabelPosition > &candidatesIndex )
 {
+  printf("+++ignoreLabel %d\n", lp->getId());
   if ( list.isIn( lp->getId() ) )
   {
+    printf(" in list");
     list.remove( lp->getId() );
 
     double amin[2];
@@ -247,13 +253,18 @@ void Problem::ignoreLabel( const LabelPosition *lp, PriorityQueue &list, PalRtre
     lp->getBoundingBox( amin, amax );
     candidatesIndex.intersects( QgsRectangle( amin[0], amin[1], amax[0], amax[1] ), [lp, &list, this]( const LabelPosition * lp2 )->bool
     {
+      printf(" Check intersect %d => %d, in list: %d, conflict %d\n",
+             lp->getId(), lp2->getId(),  list.isIn( lp2->getId() ), candidatesAreConflicting( lp2, lp ) );
+
       if ( lp2->getId() != lp->getId() && list.isIn( lp2->getId() ) && candidatesAreConflicting( lp2, lp ) )
       {
+        printf(" decreaseKey intersecting %d\n", lp2->getId());
         list.decreaseKey( lp2->getId() );
       }
       return true;
     } );
   }
+  printf("---ignoreLabel %d\n", lp->getId());
 }
 
 /* Better initial solution
@@ -261,6 +272,7 @@ void Problem::ignoreLabel( const LabelPosition *lp, PriorityQueue &list, PalRtre
  */
 // Caller: chainSearch
 // Inputs:
+//  mDisplayAll
 //  mFeatureCount
 //  mTotalCandidates
 //  mLabelPositions
@@ -277,6 +289,49 @@ void Problem::init_sol_falp()
 {
   int label;
 
+  //================ debug ======================
+  printf("+++Problem::init_sol_falp\n");
+
+  std::vector<int> labelPositionIds;
+  transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(labelPositionIds), toLabelPositionId);
+  std::vector<int> labelNumOverlaps;
+  transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(labelNumOverlaps), toLabelNumOverlaps);
+
+  std::vector<int> allIds;
+  PalRtree<LabelPosition>::Iterator iter;
+  for(mAllCandidatesIndex.GetFirst(iter); !mAllCandidatesIndex.IsNull(iter); mAllCandidatesIndex.GetNext(iter)) {
+    LabelPosition *v = mAllCandidatesIndex.GetAt(iter);
+    allIds.push_back(v->getId());
+  }
+
+  std::vector<int> activeIds;
+  for(mActiveCandidatesIndex.GetFirst(iter); !mActiveCandidatesIndex.IsNull(iter); mActiveCandidatesIndex.GetNext(iter)) {
+    LabelPosition *v = mActiveCandidatesIndex.GetAt(iter);
+    activeIds.push_back(v->getId());
+  }
+
+  std::map<int, std::vector<int>> problemFeatureIds;
+  for(mActiveCandidatesIndex.GetFirst(iter); !mActiveCandidatesIndex.IsNull(iter); mActiveCandidatesIndex.GetNext(iter)) {
+    LabelPosition *v = mAllCandidatesIndex.GetAt(iter);
+    problemFeatureIds[v->getId()].push_back(v->getProblemFeatureId());
+  }
+
+  nlohmann::json debugBefore = {
+      { "mDisplayAll", mDisplayAll },
+      { "mFeatureCount", mFeatureCount },
+      { "mTotalCandidates", mTotalCandidates},
+      { "mLabelPositions->id", labelPositionIds},
+      { "mLabelPositions->numOverlaps", labelNumOverlaps},
+      { "mAllNblp", mAllNblp},
+      { "mFeatNbLp", mFeatNbLp},
+      { "mFeatStartId", mFeatStartId},
+      { "mAllCandidatesIndex->ids", allIds },
+      { "mActiveCandidatesIndex->ids", activeIds },
+      { "problemFeatureIds", problemFeatureIds }
+  };
+  std::cout << debugBefore << std::endl;
+  //=============================================
+
   mSol.init( mFeatureCount );
 
   PriorityQueue list( mTotalCandidates, mAllNblp, true );
@@ -286,6 +341,7 @@ void Problem::init_sol_falp()
 
   LabelPosition *lp = nullptr;
 
+  printf("Build priority queue\n");
   for ( int i = 0; i < static_cast< int >( mFeatureCount ); i++ )
     for ( int j = 0; j < mFeatNbLp[i]; j++ )
     {
@@ -293,6 +349,7 @@ void Problem::init_sol_falp()
       try
       {
         list.insert( label, mLabelPositions.at( label )->getNumOverlaps() );
+        printf("insert %d, %d\n", label, mLabelPositions.at( label )->getNumOverlaps());
       }
       catch ( pal::InternalException::Full & )
       {
@@ -300,6 +357,7 @@ void Problem::init_sol_falp()
       }
     }
 
+  printf("Process list %d entries\n", list.getSize());
   while ( list.getSize() > 0 ) // O (log size)
   {
     if ( pal->isCanceled() )
@@ -308,7 +366,6 @@ void Problem::init_sol_falp()
     }
 
     label = list.getBest();   // O (log size)
-
     lp = mLabelPositions[ label ].get();
 
     if ( lp->getId() != label )
@@ -318,6 +375,8 @@ void Problem::init_sol_falp()
 
     const int probFeatId = lp->getProblemFeatureId();
     mSol.activeLabelIds[probFeatId] = label;
+
+    printf("getBest label=%d, probFeatId=%d\n", label, probFeatId);
 
     for ( int i = mFeatStartId[probFeatId]; i < mFeatStartId[probFeatId] + mFeatNbLp[probFeatId]; i++ )
     {
@@ -332,6 +391,7 @@ void Problem::init_sol_falp()
     {
       if ( candidatesAreConflicting( lp, lp2 ) )
       {
+        printf("add conflictingPositions %d\n", lp2->getId());
         conflictingPositions.emplace_back( lp2 );
       }
       return true;
@@ -343,8 +403,10 @@ void Problem::init_sol_falp()
     }
 
     mActiveCandidatesIndex.insert( lp, QgsRectangle( amin[0], amin[1], amax[0], amax[1] ) );
+    printf("label %d inserted\n", lp->getId());
   }
 
+  // NOTE: mDisplayAll appears never to be set in QGIS - RP 5-12-2022
   if ( mDisplayAll )
   {
     int nbOverlap;

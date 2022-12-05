@@ -120,7 +120,9 @@ void PriorityQueue::insert( int key, double p )
 
   heap[size] = key;
   pos[key] = size;
-  this->p[size] = p;
+
+  // make this deterministic => the priorities can be equal => we add in the key / 1e6 to introduce differencw
+  this->p[size] = p + (double)key / 1e6;
 
   size++;
 
