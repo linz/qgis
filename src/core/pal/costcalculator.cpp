@@ -35,6 +35,9 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
   int n = 0;
   double dist;
   const double distlabel = lp->feature->getLabelDistance();
+  
+  printf("CostCalculator::addObstacleCostPenalty lp->getId() == %d, obstacle->featureId=%lld",
+         lp->getId(), obstacle->featureId());
 
   switch ( obstacle->getGeosType() )
   {
@@ -95,8 +98,10 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
       const double obstaclePriority = obstacle->obstacleSettings().factor();
 
       // if feature priority is < obstaclePriorty, there's a hard conflict...
+      printf("  check priority n=%d, priority=%lf, obstaclePriority=%lf\n", n, priority, obstaclePriority);
       if ( n > 0 && ( priority < obstaclePriority && !qgsDoubleNear( priority, obstaclePriority, 0.001 ) ) )
       {
+        printf("  setHasHardObstacleConflict true\n");
         lp->setHasHardObstacleConflict( true );
       }
       break;

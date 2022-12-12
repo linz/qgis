@@ -93,6 +93,7 @@ Layer *Pal::addLayer( QgsAbstractLabelProvider *provider, const QString &layerNa
 
 std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const QgsGeometry &mapBoundary, QgsRenderContext &context )
 {
+  printf("+++pal::extractProblem\n");
   QgsLabelingEngineFeedback *feedback = qobject_cast< QgsLabelingEngineFeedback * >( context.feedback() );
 
   // expand out the incoming buffer by 1000x -- that's the visible map extent, yet we may be getting features which exceed this extent
@@ -311,8 +312,10 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
     index = -1;
     step = !allObstacleParts.empty() ? 100.0 / allObstacleParts.size() : 1;
 
+    printf("obstacleCostingAboutToBegin\n");
     for ( FeaturePart *obstaclePart : allObstacleParts )
     {
+      printf(" obstaclePart: featureId: %lld\n", obstaclePart->featureId());
       index++;
       if ( feedback )
         feedback->setProgress( step * index );
@@ -322,7 +325,10 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
 
       allCandidatesFirstRound.intersects( obstaclePart->boundingBox(), [obstaclePart, this]( const LabelPosition * candidatePosition ) -> bool
       {
-        // test whether we should ignore this obstacle for the candidate. We do this if:
+          printf("  allCandidatesFirstRound.intersects: candidatePosition: %d, featureId: %lld, overlapHandling=%d\n",
+                 candidatePosition->getId(), candidatePosition->getFeaturePart()->featureId(), (int)candidatePosition->getFeaturePart()->feature()->overlapHandling());
+
+          // test whether we should ignore this obstacle for the candidate. We do this if:
         // 1. it's not a hole, and the obstacle belongs to the same label feature as the candidate (e.g.,
         // features aren't obstacles for their own labels)
         // 2. it IS a hole, and the hole belongs to a different label feature to the candidate (e.g., holes
@@ -335,6 +341,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
           return true;
         }
 
+        printf("  calls addObstacleCostPenalty\n");
         CostCalculator::addObstacleCostPenalty( const_cast< LabelPosition * >( candidatePosition ), obstaclePart, this );
 
         return true;
@@ -343,6 +350,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
 
     if ( feedback )
       feedback->emit obstacleCostingFinished();
+    printf("obstacleCostingFinished\n");
 
     if ( isCanceled() )
     {
@@ -353,6 +361,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
     if ( feedback )
       feedback->emit calculatingConflictsAboutToBegin();
 
+    printf("calculatingConflictsAboutToBegin\n");
     int idlp = 0;
     for ( std::size_t i = 0; i < prob->mFeatureCount; i++ ) /* for each feature into prob */
     {
@@ -381,6 +390,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
           maxCandidates = std::max( static_cast< std::size_t >( 16 ), feat->feature->maximumPolygonCandidates() );
           break;
       }
+      printf("feature index %lu maxCandidates=%lu\n", i, maxCandidates);
 
       if ( isCanceled() )
         return nullptr;
@@ -402,11 +412,13 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
             {
               if ( candidate->hasHardObstacleConflict() )
               {
+                printf(" candidate %d hasHardObstacleConflict - erase\n", candidate->getId());
                 return true;
               }
               return false;
             } ), feat->candidates.end() );
 
+            printf("feat %lld candidates size=%lu\n", feat->feature->featureId(), feat->candidates.size());
             if ( feat->candidates.size() == 1 && feat->candidates[ 0 ]->hasHardObstacleConflict() )
             {
               switch ( feat->feature->feature()->overlapHandling() )
@@ -436,6 +448,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
       switch ( feat->feature->feature()->overlapHandling() )
       {
         case Qgis::LabelOverlapHandling::PreventOverlap:
+          printf("calls pruneHardConflicts\n");
           pruneHardConflicts();
           break;
 
@@ -448,10 +461,25 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
         continue;
 
       // calculate final costs
+      printf("feature %lld costs before: ", feat->feature->featureId());
+      for ( std::unique_ptr< LabelPosition > &dbg_candidate : feat->candidates ) {
+        printf("%d:%lf, ", dbg_candidate->getId(), dbg_candidate->cost());
+      }
+      printf("\n");
       CostCalculator::finalizeCandidatesCosts( feat.get(), bbx, bby );
+      printf("feature %lld costs after finalizeCandidatesCosts: ", feat->feature->featureId());
+      for ( std::unique_ptr< LabelPosition > &dbg_candidate : feat->candidates ) {
+        printf("%d:%lf, ", dbg_candidate->getId(), dbg_candidate->cost());
+      }
+      printf("\n");
 
       // sort candidates list, best label to worst
       std::sort( feat->candidates.begin(), feat->candidates.end(), CostCalculator::candidateSortGrow );
+      printf("feature %lld candidates after sort: ", feat->feature->featureId());
+      for ( std::unique_ptr< LabelPosition > &dbg_candidate : feat->candidates ) {
+        printf("%d:%lf, ", dbg_candidate->getId(), dbg_candidate->cost());
+      }
+      printf("\n");
 
       // but if we ARE showing all labels (including conflicts), let's go ahead and prune them now.
       // Since we've calculated all their costs and sorted them, if we've hit the situation that ALL
@@ -484,6 +512,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
       for ( std::unique_ptr< LabelPosition > &candidate : feat->candidates )
       {
         candidate->insertIntoIndex( prob->allCandidatesIndex() );
+        // This renumbers the candidates so that ids are in sort order of cost
         candidate->setProblemIds( static_cast< int >( i ), idlp++ );
       }
       features.emplace_back( std::move( feat ) );
@@ -540,6 +569,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
 
         nbOverlaps += lp->getNumOverlaps();
 
+        printf("addCandidatePosition %d:%lf\n", lp->getId(), lp->cost());
         prob->addCandidatePosition( std::move( lp ) );
 
         if ( isCanceled() )
@@ -554,6 +584,8 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
     prob->mAllNblp = prob->mTotalCandidates;
     prob->mNbOverlap = nbOverlaps;
   }
+
+  printf("---pal::extractProblem\n");
 
   return prob;
 }

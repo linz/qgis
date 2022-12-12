@@ -129,13 +129,13 @@ void Problem::reduce()
 
     long fromId = lp->getId();
 
-    printf("Check bbox for %ld: id=%d, %lf,%lf,%lf,%lf\n", i, lp->getId(), amin[0], amin[1], amax[0], amax[1]);
+    // printf("Check bbox for %ld: id=%d, %lf,%lf,%lf,%lf\n", i, lp->getId(), amin[0], amin[1], amax[0], amax[1]);
     mAllCandidatesIndex.intersects( QgsRectangle( amin[0], amin[1], amax[0], amax[1] ), [&conflictMatrix, i, lp, fromId, this]( const LabelPosition * lp2 ) -> bool {
       auto sameLabel = [lp2](const std::unique_ptr< LabelPosition > &lp1) { return lp1.get()->getId() == lp2->getId(); };
       size_t lp2index = std::find_if(mLabelPositions.begin(), mLabelPositions.end(), sameLabel) - mLabelPositions.begin();
       long toId = lp2->getId();
 
-      printf("intersect at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
+      // printf("intersect at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
       if (candidatesAreConflicting(lp2, lp)) {
         printf("conflict at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
         conflictMatrix[fromId][toId] = 1;
@@ -147,12 +147,20 @@ void Problem::reduce()
     });
   }
 
+  std::vector<int> labelNumOverlaps;
+  transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(labelNumOverlaps), toLabelNumOverlaps);
+  std::vector<double> costs;
+  transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(costs), toLabelCost);
+
+  printf("preReduceValues=\n");
   nlohmann::json debugBefore = {
           { "mTotalCandidates", mTotalCandidates },
           { "mFeatNbLp", mFeatNbLp},
           { "mFeatStartId", mFeatStartId},
           { "mLabelPositions->featureId", featureIds},
           { "mLabelPositions->id", labelPositionIds},
+          { "mLabelPositions->numOverlaps", labelNumOverlaps},
+          { "mLabelPositions->cost", costs},
           { "conflictMatrix", conflictMatrix },
           { "mAllCandidatesIndex->ids", allIds }
   };
@@ -187,6 +195,7 @@ void Problem::reduce()
         {
           if ( mLabelPositions.at( mFeatStartId[i] + j )->getNumOverlaps() == 0 ) // if candidate has no overlap
           {
+            printf("candidate has no overlap for %d:%d\n", i, j);
             run = true;
             ok[mFeatStartId[i] + j] = true;
             // 1) remove worse candidates from candidates
@@ -195,7 +204,7 @@ void Problem::reduce()
 
             for ( k = j + 1; k < mFeatNbLp[i]; k++ )
             {
-
+              printf(" remove worse %d:%d\n", i, k);
               lpid = mFeatStartId[i] + k;
               ok[lpid] = true;
               lp2 = mLabelPositions[lpid ].get();
@@ -207,6 +216,7 @@ void Problem::reduce()
               {
                 if ( candidatesAreConflicting( lp2, lp ) )
                 {
+                  printf("conflict %d -- %d\n", lp2->getId(), lp->getId());
                   const_cast< LabelPosition * >( lp )->decrementNumOverlaps();
                   lp2->decrementNumOverlaps();
                 }
@@ -228,14 +238,25 @@ void Problem::reduce()
   delete[] ok;
 
   printf("---Problem::reduce\n");
+  labelNumOverlaps.clear();
+  transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(labelNumOverlaps), toLabelNumOverlaps);
+  featureIds.clear();
   transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(featureIds), toFeatureId);
+  labelPositionIds.clear();
   transform(mLabelPositions.begin(), mLabelPositions.end(), std::back_inserter(labelPositionIds), toLabelPositionId);
+  allIds.clear();
+  for(mAllCandidatesIndex.GetFirst(iter); !mAllCandidatesIndex.IsNull(iter); mAllCandidatesIndex.GetNext(iter)) {
+    LabelPosition *v = mAllCandidatesIndex.GetAt(iter);
+    allIds.push_back(v->getId());
+  }
 
   nlohmann::json debugAfter = {
       { "mTotalCandidates", mTotalCandidates },
       { "mNbOverlap", mNbOverlap},
       { "mLabelPositions->featureId", featureIds},
       { "mLabelPositions->id", labelPositionIds},
+      { "mLabelPositions->numOverlaps", labelNumOverlaps},
+      { "mAllCandidatesIndex->ids", allIds }
   };
   std::cout << debugAfter << std::endl;
 }
@@ -504,6 +525,7 @@ inline Chain *Problem::chain( int seed )
     activeIds.push_back(v->getId());
   }
 
+  printf("chainInputValues=\n");
   nlohmann::json debugBefore = {
           { "seed", seed },
           { "mSol.activeLabelIds", mSol.activeLabelIds},
