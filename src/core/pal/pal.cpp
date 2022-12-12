@@ -179,10 +179,12 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
         feedback->setProgress( index * step + featureIndex * featureStep );
       featureIndex++;
 
+      printf("Processing feature ");
+
       if ( isCanceled() )
         break;
 
-      // Holes of the feature are obstacles
+      // Holes of the feature are obstaclesf
       for ( int i = 0; i < featurePart->getNumSelfObstacles(); i++ )
       {
         FeaturePart *selfObstacle =  featurePart->getSelfObstacle( i );
@@ -220,7 +222,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
           candidate->insertIntoIndex( allCandidatesFirstRound );
           candidate->setGlobalId( mNextCandidateId++ );
         }
-
+        printf("before grow 1\n");
         std::sort( candidates.begin(), candidates.end(), CostCalculator::candidateSortGrow );
 
         // valid features are added to fFeats
@@ -474,6 +476,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
       printf("\n");
 
       // sort candidates list, best label to worst
+      printf("before grow 2\n");
       std::sort( feat->candidates.begin(), feat->candidates.end(), CostCalculator::candidateSortGrow );
       printf("feature %lld candidates after sort: ", feat->feature->featureId());
       for ( std::unique_ptr< LabelPosition > &dbg_candidate : feat->candidates ) {

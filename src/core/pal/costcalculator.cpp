@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "layer.h"
+#include <json.hpp>
 #include "pal.h"
 #include "feature.h"
 #include "geomfunction.h"
@@ -27,11 +28,20 @@ using namespace pal;
 
 bool CostCalculator::candidateSortGrow( const std::unique_ptr< LabelPosition > &c1, const std::unique_ptr< LabelPosition > &c2 )
 {
+  // literally just a comparison function used for sorting
+  // printf("CandidateSortGrow \n");
+
+  // nlohmann::json debug = {
+  //   {"c1", c1->cost()},
+  //   {"c2", c2->cost()},
+  // };
+  // std::cout << debug << std::endl;
   return c1->cost() < c2->cost();
 }
 
 void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obstacle, Pal *pal )
 {
+  printf("==================addObstacleCostPenalty \n");
   int n = 0;
   double dist;
   const double distlabel = lp->feature->getLabelDistance();
@@ -42,7 +52,7 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
   switch ( obstacle->getGeosType() )
   {
     case GEOS_POINT:
-
+      printf("case GEOS_POINT \n");
       dist = lp->getDistanceToPoint( obstacle->x[0], obstacle->y[0] );
       if ( dist < 0 )
         n = 2;
@@ -55,12 +65,13 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
       break;
 
     case GEOS_LINESTRING:
-
+      printf("case GEOS_LINESTRING \n");
       // Is one of label's borders crossing the line ?
       n = ( lp->crossesLine( obstacle ) ? 1 : 0 );
       break;
 
     case GEOS_POLYGON:
+      printf("case GEOS_POLYGON \n");
       // behavior depends on obstacle avoid type
       switch ( obstacle->layer()->obstacleType() )
       {
@@ -111,11 +122,12 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
   // label cost is penalized
   lp->setCost( lp->cost() + obstacleCost );
 }
-
+//internal function
 void CostCalculator::calculateCandidatePolygonRingDistanceCosts( std::vector< std::unique_ptr< LabelPosition > > &lPos, double bbx[4], double bby[4] )
 {
   // first we calculate the ring distance cost for all candidates for this feature. We then use the range
   // of distance costs to calculate a standardised scaling for the costs
+  printf("====================calculateCandidatePolygonRingDistanceCosts \n");
   QHash< LabelPosition *, double > polygonRingDistances;
   double minCandidateRingDistance = std::numeric_limits< double >::max();
   double maxCandidateRingDistance = std::numeric_limits< double >::lowest();
@@ -144,9 +156,10 @@ void CostCalculator::calculateCandidatePolygonRingDistanceCosts( std::vector< st
     pos->setCost( pos->cost() + 0.002 - ( polygonRingDistanceCost - minCandidateRingDistance ) * normalizer );
   }
 }
-
+//internal function
 void CostCalculator::calculateCandidatePolygonCentroidDistanceCosts( pal::FeaturePart *feature, std::vector<std::unique_ptr<LabelPosition> > &lPos )
 {
+  printf("=======================calculateCandidatePolygonCentroidDistanceCosts \n");
   double cx, cy;
   feature->getCentroid( cx, cy );
 
@@ -184,9 +197,10 @@ void CostCalculator::calculateCandidatePolygonCentroidDistanceCosts( pal::Featur
     pos->setCost( pos->cost() + ( polygonCentroidDistance - minCandidateCentroidDistance ) * normalizer );
   }
 }
-
+//internal function
 double CostCalculator::calculatePolygonRingDistance( LabelPosition *candidate, double bbx[4], double bby[4] )
 {
+  printf("=====================calculatePolygonRingDistance \n");
   // TODO 1: Consider whether distance calculation should use min distance to the candidate rectangle
   // instead of just the center
   CandidatePolygonRingDistanceCalculator ringDistanceCalculator( candidate );
@@ -212,11 +226,39 @@ double CostCalculator::calculatePolygonRingDistance( LabelPosition *candidate, d
   return ringDistanceCalculator.minimumDistance();
 }
 
+void printCandidates(Feats *feat) {
+  std::size_t count = 0;
+  for( count = 0; count < feat->candidates.size(); count++) {
+    nlohmann::json candidateJson = {
+      {"id", feat->candidates[count]->getId()},
+      {"cost", feat->candidates[count]->cost()},
+      //{"geometry", feat->candidates[count]->feature},
+    };
+    std::cout << "candidate" << candidateJson << std::endl;
+    //std::cout << "id: " << feat->candidates[count]->getId() <<" candidate cost " << feat->candidates[count]->cost() << std::endl;
+  }
+}
+
 void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double bby[4] )
 {
+  printf("=============================finalizeCandidatesCosts \n");
+  printf("feat priority = %f \n", feat->priority);
+  std::cout << "feature geos type = " << feat->feature->getGeosType() << std::endl;
+  printf("bbx = %f %f %f %f and bby= %f %f %f %f \n",bbx[0], bbx[1], bbx[2], bbx[3], bby[0], bby[1], bby[2], bby[3]);
+
+  nlohmann::json debug = {
+     {"candidate Sizes", feat->candidates.size()},
+     {"feature type", feat->feature->getGeosType()},
+     {"feature length", feat->feature->length()},
+     {"feature area", feat->feature->area()},
+     {"Arrangement", feat->feature->layer()->arrangement()},
+   };
+  std::cout << "Feature details " << debug << std::endl;
+
   // sort candidates list, best label to worst
   std::sort( feat->candidates.begin(), feat->candidates.end(), candidateSortGrow );
-
+  printCandidates(feat);
+  
   // Original nonsense comment from pal library:
   // "try to exclude all conflitual labels (good ones have cost < 1 by pruning)"
   // my interpretation: it appears this scans through the candidates and chooses some threshold
@@ -233,24 +275,33 @@ void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double
       ;
   }
   while ( stop == 0 && discrim < feat->candidates.back()->cost() + 2.0 );
-
+  printf("discrim = %f \n", discrim);
   // THIS LOOKS SUSPICIOUS -- it clamps all costs to a fixed value??
   if ( discrim > 1.5 )
   {
     for ( std::size_t k = 0; k < stop; k++ )
       feat->candidates[ k ]->setCost( 0.0021 );
   }
+  
+  printf("stop = %d and size = %d\n", stop, feat->candidates.size());
+  printf("After Discrim \n");
+  printCandidates(feat);
 
   if ( feat->candidates.size() > stop )
   {
-    feat->candidates.resize( stop );
+    feat->candidates.resize( stop ); 
   }
+
+  printf("After resize \n");
+  printCandidates(feat);
 
   // Sets costs for candidates of polygon
 
   if ( feat->feature->getGeosType() == GEOS_POLYGON )
   {
+    printf("Special polygon functionality \n");
     const Qgis::LabelPlacement arrangement = feat->feature->layer()->arrangement();
+    //printf("arrangement = %d \n", arrangement);
     if ( arrangement == Qgis::LabelPlacement::Free || arrangement == Qgis::LabelPlacement::Horizontal )
     {
       // prefer positions closer to the pole of inaccessibilities
@@ -262,16 +313,20 @@ void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double
 
   // add size penalty (small lines/polygons get higher cost)
   feat->feature->addSizePenalty( feat->candidates, bbx, bby );
+  printf("after penalty \n");
+  printCandidates(feat);
 }
 
 CandidatePolygonRingDistanceCalculator::CandidatePolygonRingDistanceCalculator( LabelPosition *candidate )
   : mPx( ( candidate->x[0] + candidate->x[2] ) / 2.0 )
   , mPy( ( candidate->y[0] + candidate->y[2] ) / 2.0 )
 {
+  printf("====================CandidatePolygonRingDistanceCalculator \n");
 }
 
 void CandidatePolygonRingDistanceCalculator::addRing( const pal::PointSet *ring )
 {
+  printf("==================addRing \n");
   const double d = ring->minDistanceToPoint( mPx, mPy );
   if ( d < mMinDistance )
   {
@@ -281,5 +336,6 @@ void CandidatePolygonRingDistanceCalculator::addRing( const pal::PointSet *ring 
 
 double CandidatePolygonRingDistanceCalculator::minimumDistance() const
 {
+  printf("=======================minimumDistance \n");
   return mMinDistance;
 }
