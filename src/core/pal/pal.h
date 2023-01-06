@@ -245,6 +245,8 @@ namespace pal
        */
       bool candidatesAreConflicting( const LabelPosition *lp1, const LabelPosition *lp2 ) const;
 
+      void resetConflictCache() { mCandidateConflicts.clear(); }
+
     private:
 
       std::unordered_map< QgsAbstractLabelProvider *, std::unique_ptr< Layer > > mLayers;

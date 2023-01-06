@@ -119,6 +119,7 @@ void Problem::reduce()
 
   std::vector<std::vector<int>> conflictMatrix(mLabelPositions.size(), std::vector<int>(mLabelPositions.size(), 0));
 
+  pal->resetConflictCache();
   for ( size_t i = 0; i < mLabelPositions.size(); i++ )
   {
     LabelPosition *lp = mLabelPositions[ i ].get();
@@ -129,17 +130,23 @@ void Problem::reduce()
 
     long fromId = lp->getId();
 
-    // printf("Check bbox for %ld: id=%d, %lf,%lf,%lf,%lf\n", i, lp->getId(), amin[0], amin[1], amax[0], amax[1]);
+    printf("From label %d: %lf,%lf,%lf,%lf,%lf\n", lp->getId(), lp->getX(), lp->getY(), lp->getWidth(), lp->getHeight(), lp->getAlpha());
+    printf("Check bbox for %ld: id=%d, %lf,%lf,%lf,%lf\n", i, lp->getId(), amin[0], amin[1], amax[0], amax[1]);
     mAllCandidatesIndex.intersects( QgsRectangle( amin[0], amin[1], amax[0], amax[1] ), [&conflictMatrix, i, lp, fromId, this]( const LabelPosition * lp2 ) -> bool {
       auto sameLabel = [lp2](const std::unique_ptr< LabelPosition > &lp1) { return lp1.get()->getId() == lp2->getId(); };
       size_t lp2index = std::find_if(mLabelPositions.begin(), mLabelPositions.end(), sameLabel) - mLabelPositions.begin();
       long toId = lp2->getId();
-
-      // printf("intersect at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
+      printf("intersect at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
+      printf("To label %d: %lf,%lf,%lf,%lf,%lf\n", lp2->getId(), lp2->getX(), lp2->getY(), lp2->getWidth(), lp2->getHeight(), lp2->getAlpha());
       if (candidatesAreConflicting(lp2, lp)) {
         printf("conflict at %ld(%ld), %ld(%ld)\n", fromId, i, toId, lp2index);
         conflictMatrix[fromId][toId] = 1;
         conflictMatrix[toId][fromId] = 1; // QGIS only shows conflicts in one direction I think
+      }
+      else {
+        printf("Intersect found, no conflict\n");
+        printf(" lp2->alpha=%f, lp->alpha=%f, lp2->probFeat=%d,  lp->probFeat=%d\n", lp2->getAlpha(), lp->getAlpha(), lp2->getProblemFeatureId(), lp->getProblemFeatureId());
+        printf(" lp2->boundingBoxIntersects(lp) = %d\n", lp2->boundingBoxIntersects(lp));
       }
 
       // We want all intersects
@@ -216,9 +223,9 @@ void Problem::reduce()
               {
                 if ( candidatesAreConflicting( lp2, lp ) )
                 {
-                  printf("conflict %d -- %d\n", lp2->getId(), lp->getId());
                   const_cast< LabelPosition * >( lp )->decrementNumOverlaps();
                   lp2->decrementNumOverlaps();
+                  printf("conflict %d -- %d, overlaps=%d:%d\n", lp2->getId(), lp->getId(), lp2->getNumOverlaps(), lp->getNumOverlaps());
                 }
 
                 return true;
@@ -266,7 +273,7 @@ void Problem::ignoreLabel( const LabelPosition *lp, PriorityQueue &list, PalRtre
   printf("+++ignoreLabel %d\n", lp->getId());
   if ( list.isIn( lp->getId() ) )
   {
-    printf(" in list");
+    printf(" in list\n");
     list.remove( lp->getId() );
 
     double amin[2];
@@ -379,12 +386,17 @@ void Problem::init_sol_falp()
     }
 
   printf("Process list %d entries\n", list.getSize());
+  list.print();
+
   while ( list.getSize() > 0 ) // O (log size)
   {
     if ( pal->isCanceled() )
     {
       return;
     }
+
+    printf("At getBest()\n");
+    list.print();
 
     label = list.getBest();   // O (log size)
     lp = mLabelPositions[ label ].get();
@@ -604,7 +616,8 @@ inline Chain *Problem::chain( int seed )
             // no conflict -> end of chain
             if ( conflicts.isEmpty() )
             {
-              printf(" no conflicts end of chain\n");
+              printf(" no conflicts end of chain retainedChain=(degree=%d, delta=%f) candidateId=%d, delta=%f, weight=%f, deltaBest=%f\n",
+                     retainedChain->degree, retainedChain->delta, lp->getId(), delta, lp->cost(), delta_best);
               if ( !retainedChain || delta + lp->cost() < delta_best )
               {
                 if ( retainedChain )

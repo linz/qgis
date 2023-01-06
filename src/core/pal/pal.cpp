@@ -179,7 +179,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
         feedback->setProgress( index * step + featureIndex * featureStep );
       featureIndex++;
 
-      printf("Processing feature ");
+      printf("Processing feature:\n");
 
       if ( isCanceled() )
         break;
@@ -199,11 +199,17 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
 
       // generate candidates for the feature part
       std::vector< std::unique_ptr< LabelPosition > > candidates = featurePart->createCandidates( this );
+      printf("feature %lld after candidate creation: ", featurePart->feature()->id());
+      for ( std::unique_ptr< LabelPosition > &dbg_candidate : candidates ) {
+        printf("%d: %lf,%lf, %lf,%lf, %lf\n", dbg_candidate->getId(), dbg_candidate->getX(), dbg_candidate->getY(),  dbg_candidate->getWidth(), dbg_candidate->getHeight(), dbg_candidate->cost());
+      }
+      printf("\n");
 
       if ( isCanceled() )
         break;
 
       // purge candidates that are outside the bbox
+      printf("Feature %lld, candidates %lu before box clip\n", featurePart->feature()->id(), candidates.size());
       candidates.erase( std::remove_if( candidates.begin(), candidates.end(), [&mapBoundaryPrepared, this]( std::unique_ptr< LabelPosition > &candidate )
       {
         if ( showPartialLabels() )
@@ -211,6 +217,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
         else
           return !candidate->within( mapBoundaryPrepared.get() );
       } ), candidates.end() );
+      printf(" => candidates %lu after box clip\n", candidates.size());
 
       if ( isCanceled() )
         break;
@@ -392,7 +399,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
           maxCandidates = std::max( static_cast< std::size_t >( 16 ), feat->feature->maximumPolygonCandidates() );
           break;
       }
-      printf("feature index %lu maxCandidates=%lu\n", i, maxCandidates);
+      printf("feature index %lu maxCandidates=%lu, candidates=%lu\n", i, maxCandidates, feat->candidates.size());
 
       if ( isCanceled() )
         return nullptr;
@@ -564,6 +571,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
           if ( candidatesAreConflicting( lp.get(), lp2 ) )
           {
             lp->incrementNumOverlaps();
+            printf("%d conflicts with %d, overlaps=%d\n", lp->getId(), lp2->getId(), lp->getNumOverlaps());
           }
 
           return true;
@@ -572,7 +580,7 @@ std::unique_ptr<Problem> Pal::extractProblem( const QgsRectangle &extent, const 
 
         nbOverlaps += lp->getNumOverlaps();
 
-        printf("addCandidatePosition %d:%lf\n", lp->getId(), lp->cost());
+        printf("addCandidatePosition %lld:%d:%lf\n", lp->getFeaturePart()->featureId(), lp->getId(), lp->cost());
         prob->addCandidatePosition( std::move( lp ) );
 
         if ( isCanceled() )

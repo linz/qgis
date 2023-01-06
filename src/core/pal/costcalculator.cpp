@@ -120,6 +120,7 @@ void CostCalculator::addObstacleCostPenalty( LabelPosition *lp, FeaturePart *obs
   }
 
   // label cost is penalized
+  printf("addObstacleCost %d, %lf\n", lp->getId(), obstacleCost);
   lp->setCost( lp->cost() + obstacleCost );
 }
 //internal function
@@ -241,7 +242,7 @@ void printCandidates(Feats *feat) {
 
 void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double bby[4] )
 {
-  printf("=============================finalizeCandidatesCosts \n");
+  printf("=============================finalizeCandidatesCosts %lld\n", feat->feature->featureId());
   printf("feat priority = %f \n", feat->priority);
   std::cout << "feature geos type = " << feat->feature->getGeosType() << std::endl;
   printf("bbx = %f %f %f %f and bby= %f %f %f %f \n",bbx[0], bbx[1], bbx[2], bbx[3], bby[0], bby[1], bby[2], bby[3]);
@@ -283,7 +284,7 @@ void CostCalculator::finalizeCandidatesCosts( Feats *feat, double bbx[4], double
       feat->candidates[ k ]->setCost( 0.0021 );
   }
   
-  printf("stop = %d and size = %d\n", stop, feat->candidates.size());
+  printf("stop = %lu and size = %lu\n", stop, feat->candidates.size());
   printf("After Discrim \n");
   printCandidates(feat);
 

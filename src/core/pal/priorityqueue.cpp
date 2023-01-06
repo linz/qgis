@@ -274,7 +274,6 @@ void PriorityQueue::setPriority( int key, double new_p )
 
 void PriorityQueue::decreaseKey( int key )
 {
-
   if ( key < 0 || key > maxId )
     return;
 

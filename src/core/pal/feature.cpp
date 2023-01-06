@@ -866,6 +866,9 @@ std::size_t FeaturePart::createCandidatesAlongLineNearStraightSegments( std::vec
   std::vector< double > &x = line->x;
   std::vector< double > &y = line->y;
 
+  printf("createCandidatesAlongLineNearStraightSegments %lf,%lf -> %lf,%lf\n", x[0], y[0], x[nbPoints-1], y[nbPoints-1]);
+
+
   // closed line? if so, we need to handle the final node angle
   bool closedLine = qgsDoubleNear( x[0], x[ numberNodes - 1] ) && qgsDoubleNear( y[0], y[numberNodes - 1 ] );
   for ( int i = 1; i <= numberNodes - ( closedLine ? 1 : 2 ); ++i )
@@ -946,10 +949,12 @@ std::size_t FeaturePart::createCandidatesAlongLineNearStraightSegments( std::vec
   const std::size_t candidateTargetCount = maximumLineCandidates();
   double lineStepDistance = ( totalLineLength - labelWidth ); // distance to move along line with each candidate
   lineStepDistance = std::min( std::min( labelHeight, labelWidth ), lineStepDistance / candidateTargetCount );
+  printf("  lineStepDistance=%lf, totalLineLength=%lf\n", lineStepDistance, totalLineLength);
 
   double distanceToEndOfSegment = 0.0;
   int lastNodeInSegment = 0;
   // finally, loop through all these straight segments. For each we create candidates along the straight segment.
+  printf(" straightSegmentLengths.count=%d\n", straightSegmentLengths.count());
   for ( int i = 0; i < straightSegmentLengths.count(); ++i )
   {
     currentStraightSegmentLength = straightSegmentLengths.at( i );
@@ -964,6 +969,8 @@ std::size_t FeaturePart::createCandidatesAlongLineNearStraightSegments( std::vec
       continue;
 
     double currentDistanceAlongLine = distanceToStartOfSegment;
+    printf(" placing currentDistanceAlongLine = %lf\n", currentDistanceAlongLine);
+
     double candidateStartX, candidateStartY, candidateEndX, candidateEndY;
     double candidateLength = 0.0;
     double cost = 0.0;
@@ -1100,6 +1107,10 @@ std::size_t FeaturePart::createCandidatesAlongLineNearStraightSegments( std::vec
     }
   }
 
+  printf(" returns %ld\n", lPos.size());
+  for ( std::unique_ptr< LabelPosition > &lp : lPos ) {
+    printf("   %d: %lf,%lf,%lf,%lf,%lf\n", lp->getId(), lp->getX(), lp->getY(), lp->getWidth(), lp->getHeight(), lp->getAlpha());
+  }
   return lPos.size();
 }
 
@@ -1122,6 +1133,8 @@ std::size_t FeaturePart::createCandidatesAlongLineNearMidpoint( std::vector< std
   std::vector< double > &x = line->x;
   std::vector< double > &y = line->y;
 
+  printf("createCandidatesAlongLineNearMidpoint %lf,%lf -> %lf,%lf\n", x[0], y[0], x[nbPoints-1], y[nbPoints-1]);
+
   std::vector< double > segmentLengths( nbPoints - 1 ); // segments lengths distance bw pt[i] && pt[i+1]
   std::vector< double >distanceToSegment( nbPoints ); // absolute distance bw pt[0] and pt[i] along the line
 
@@ -1139,6 +1152,8 @@ std::size_t FeaturePart::createCandidatesAlongLineNearMidpoint( std::vector< std
   distanceToSegment[line->nbPoints - 1] = totalLineLength;
 
   double lineStepDistance = ( totalLineLength - labelWidth ); // distance to move along line with each candidate
+  printf(" lineStepDistance=%lf\n", lineStepDistance);
+
   double currentDistanceAlongLine = 0;
 
   const QgsLabelLineSettings::AnchorTextPoint textPoint = mLF->lineAnchorTextPoint();
@@ -1304,6 +1319,11 @@ std::size_t FeaturePart::createCandidatesAlongLineNearMidpoint( std::vector< std
 
     if ( lineStepDistance < 0 )
       break;
+  }
+
+  printf(" returns %ld\n", lPos.size());
+  for ( std::unique_ptr< LabelPosition > &lp : lPos ) {
+    printf("   %d: %lf,%lf,%lf,%lf,%lf\n", lp->getId(), lp->getX(), lp->getY(), lp->getWidth(), lp->getHeight(), lp->getAlpha());
   }
 
   return lPos.size();
